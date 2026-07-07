@@ -30,6 +30,12 @@ with st.sidebar:
         oc_s_sun = st.number_input("日曜 終日OC(翌月曜が平日)", 1, 9, 2)
         oc_s_sun_mh = st.number_input("日曜 終日OC(翌月曜が祝日)", 1, 9, 3)
         oc_s_hol = st.number_input("祝日(平日) 終日OC", 1, 9, 3)
+        st.markdown("**入局年度による当直ルール（空欄＝無効）**")
+        no_sat_year = st.text_input("土曜当直を外す：入局年度がこれより古い人", "")
+        st.caption("例: 2015 → 2014年以前入局の人は土曜の宿直に入れない。")
+        jr_year = st.text_input("金土当直を優先：入局年度がこれより新しい人", "")
+        st.caption("例: 2018 → 2019年以降入局の人に金曜・土曜の宿直を優先。")
+        w_frisat = st.number_input("↑金土優先の重み", 0, 500, 40)
         w_premium = st.number_input("④プレミアム枠超過の重み", 0, 500, 80)
         w_consec = st.number_input("③連続勤務の重み", 0, 500, 100)
         st.markdown("**同じ種別をあける日数（1＝無効）**")
@@ -67,6 +73,9 @@ def solve_params():
         w_spacing=int(w_spacing),
         spacing={"OC": int(sp_oc), "宿直": int(sp_shuku), "日直": int(sp_nikki)},
         spacing_cross={"宿直-日直": int(sp_sd), "OC-宿直": int(sp_oshuku), "OC-日直": int(sp_onikki)},
+        no_sat_duty_year=(int(no_sat_year) if no_sat_year.strip().isdigit() else None),
+        jr_frisat_year=(int(jr_year) if jr_year.strip().isdigit() else None),
+        w_frisat=int(w_frisat),
         time_limit=int(time_limit))
 
 

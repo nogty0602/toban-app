@@ -110,6 +110,8 @@ def solve_roster(file_like, year, month,
                  w_premium=80, w_pref=60, w_consec=100, w_dev=10,
                  w_spacing=120, spacing=None, spacing_cross=None,
                  weekday_prefer=None, w_weekday=40,
+                 no_sat_duty_year=None,
+                 jr_frisat_year=None, w_frisat=40,
                  time_limit=40):
     wb = load_workbook(file_like)
     ws = wb.active
@@ -233,6 +235,17 @@ def solve_roster(file_like, year, month,
             v = [x[(si, mi)] for si in idxs if mi in slots[si]["avail"]]
             if len(v) > 1: model.Add(sum(v) <= 1)
 
+    # 指定年度より古い（入局年度が小さい）メンバーは土曜の当直(宿直)なし。
+    # ただし全員が対象で埋められなくなる枠は、実行可能性のため除外を見送る。
+    if no_sat_duty_year is not None:
+        for si, s in enumerate(slots):
+            if s["wd"] == "土" and s["kind"].startswith("宿直"):
+                excluded = [mi for mi in s["avail"] if yrs[mi] < no_sat_duty_year]
+                allowed = [mi for mi in s["avail"] if mi not in excluded]
+                if allowed:  # 割り当て先が残る場合のみ禁止
+                    for mi in excluded:
+                        model.Add(x[(si, mi)] == 0)
+
     worked = {}
     for mi in range(NM):
         for day, idxs in by_day.items():
@@ -289,6 +302,14 @@ def solve_roster(file_like, year, month,
                 if kind and not s["kind"].startswith(kind):
                     continue
                 obj.append(-w_weekday * x[(si, mi)])
+
+    # 指定年度より新しい（入局年度が大きい）メンバーは、金曜・土曜の当直(宿直)を優先（報酬）
+    if jr_frisat_year is not None:
+        for si, s in enumerate(slots):
+            if s["wd"] in ("金", "土") and s["kind"].startswith("宿直"):
+                for mi in s["avail"]:
+                    if yrs[mi] > jr_frisat_year:
+                        obj.append(-w_frisat * x[(si, mi)])
 
     prem = [si for si, s in enumerate(slots) if is_premium(s)]
     for mi in range(NM):

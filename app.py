@@ -19,8 +19,9 @@ with st.sidebar:
     year = st.number_input("年", 2020, 2100, nxt.year)
     month = st.number_input("月（表の中身の月）", 1, 12, nxt.month)
     extra_pref = st.text_input("（任意）日直を優先するメンバー", "")
-    weekday_pref_txt = st.text_input("（任意）曜日を優先するメンバー", "")
-    st.caption("例: A:月, C:金:宿直 → Aは月曜、Cは金曜の宿直を優先。書式は「氏名:曜日」または「氏名:曜日:枠種別」。")
+    weekday_pref_txt = st.text_area("（任意）曜日を優先するメンバー", "", height=68)
+    st.caption("複数の指定は「;」か改行で区切る。書式「氏名:曜日」。第N週は数字、複数可。枠種別も任意。"
+               "\n例: A:土2,4 → Aは第2・第4土曜を優先。C:金2:宿直 → Cは第2金曜の宿直。B:土 → Bは毎週土曜。")
     with st.expander("詳細設定（任意）"):
         top_coeff = st.slider("最新年度の係数（傾斜の強さ）", 1.0, 3.0, 2.0, 0.1)
         hol_oc = st.number_input("祝日(平日)の夜OCの点数", 1, 9, 3)
@@ -50,22 +51,28 @@ with st.sidebar:
         time_limit = st.number_input("計算時間上限（秒）", 5, 300, 40)
 
 
-def parse_weekday_pref(txt):
+def parse_weekday_rules(txt):
+    """例: 'A:土2,4 ; C:金2:宿直 ; B:土' → ルール一覧。区切りは ; または 改行。"""
     rules = []
-    for part in txt.split(","):
+    for part in txt.replace("\n", ";").split(";"):
         seg = [s.strip() for s in part.split(":") if s.strip()]
-        if len(seg) >= 2:
-            r = {"member": seg[0], "weekday": seg[1]}
-            if len(seg) >= 3:
-                r["kind"] = seg[2]
-            rules.append(r)
+        if len(seg) < 2:
+            continue
+        member = seg[0]
+        wtoken = seg[1].replace("，", ",")
+        wd = wtoken[0]                      # 先頭1文字が曜日
+        weeks = [int(x) for x in wtoken[1:].split(",") if x.strip().isdigit()] or None
+        r = {"member": member, "weekday": wd, "weeks": weeks}
+        if len(seg) >= 3:
+            r["kind"] = seg[2]
+        rules.append(r)
     return rules
 
 
 def solve_params():
     return dict(
         duty_pref={m.strip(): "day" for m in extra_pref.split(",") if m.strip()},
-        weekday_prefer=parse_weekday_pref(weekday_pref_txt),
+        weekday_prefer=parse_weekday_rules(weekday_pref_txt),
         holiday_wd_oc=int(hol_oc), holiday_wd_duty=int(hol_duty),
         oc_single_sat=int(oc_s_sat), oc_single_sun=int(oc_s_sun),
         oc_single_sun_monhol=int(oc_s_sun_mh), oc_single_holiday=int(oc_s_hol),

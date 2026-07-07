@@ -150,6 +150,7 @@ def solve_roster(file_like, year, month,
         avail = [i for i in range(NM)
                  if str(ws.cell(r, mcols[i]).value).strip() not in ("×", "X", "x", "✕")]
         slots.append(dict(row=r, day=day, wd=wd, kind=k, avail=avail,
+                          nth=(day - 1) // 7 + 1,   # その月で何回目のその曜日か（第N）
                           is_oc=k.startswith("OC"),
                           is_duty=k.startswith("宿直") or k.startswith("日直"),
                           is_nikkyoku=k.startswith("日直")))
@@ -292,12 +293,15 @@ def solve_roster(file_like, year, month,
                 if p == "night" and s["is_nikkyoku"]:
                     obj.append(w_pref * x[(si, mi)])
 
-    # 指定メンバー×曜日（任意で枠種別）を優先（同名は全員に適用）
+    # 指定メンバー×曜日（任意で週番号・枠種別）を優先（同名は全員に適用）
     for rule in (weekday_prefer or []):
-        nm = rule.get("member"); wd = rule.get("weekday"); kind = rule.get("kind")
+        nm = rule.get("member"); wd = rule.get("weekday")
+        kind = rule.get("kind"); weeks = rule.get("weeks")
         for mi in [i for i in range(NM) if members[i] == nm]:
             for si, s in enumerate(slots):
                 if mi not in s["avail"] or s["wd"] != wd:
+                    continue
+                if weeks and s["nth"] not in weeks:
                     continue
                 if kind and not s["kind"].startswith(kind):
                     continue

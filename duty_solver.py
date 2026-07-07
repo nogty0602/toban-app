@@ -108,6 +108,7 @@ def solve_roster(file_like, year, month,
                  oc_single_sat=3, oc_single_sun=2, oc_single_sun_monhol=3, oc_single_holiday=3,
                  top_coeff=2.0,
                  w_premium=80, w_pref=60, w_consec=100, w_dev=10,
+                 w_duty_slope=15,
                  w_spacing=120, spacing=None, spacing_cross=None,
                  weekday_prefer=None, w_weekday=40,
                  no_sat_duty_year=None,
@@ -283,6 +284,33 @@ def solve_roster(file_like, year, month,
         dev = model.NewIntVar(0, total_pt, f"dev_{mi}")
         model.Add(dev >= pv - tgt); model.Add(dev >= tgt - pv)
         obj.append(w_dev * dev)
+
+    # 当直/日直の「回数」も入局年度に応じて傾斜（新しい人ほど回数を多く）
+    duty_idx = [si for si, s in enumerate(slots) if s["is_duty"]]
+    total_duty = len(duty_idx)
+    if total_duty and w_duty_slope:
+        for mi in range(NM):
+            terms = [x[(si, mi)] for si in duty_idx if mi in slots[si]["avail"]]
+            dc = model.NewIntVar(0, total_duty, f"dc_{mi}")
+            model.Add(dc == (sum(terms) if terms else 0))
+            dtgt = round(total_duty * coeff[mi] / csum)
+            ddev = model.NewIntVar(0, total_duty, f"ddev_{mi}")
+            model.Add(ddev >= dc - dtgt); model.Add(ddev >= dtgt - dc)
+            obj.append(w_duty_slope * ddev)
+
+    # 当直・日直の「回数」も入局年度で傾斜（新しい人ほど多く）→ 古い人が多く入る逆転を防ぐ
+    if w_duty_slope:
+        duty_total = sum(1 for s in slots if s["is_duty"])
+        for mi in range(NM):
+            dterms = [x[(si, mi)] for si, s in enumerate(slots) if mi in s["avail"] and s["is_duty"]]
+            if not dterms:
+                continue
+            dv = model.NewIntVar(0, duty_total, f"duc_{mi}")
+            model.Add(dv == sum(dterms))
+            dtgt = round(duty_total * coeff[mi] / csum)
+            dd = model.NewIntVar(0, duty_total, f"dudev_{mi}")
+            model.Add(dd >= dv - dtgt); model.Add(dd >= dtgt - dv)
+            obj.append(w_duty_slope * dd)
 
     for si, s in enumerate(slots):
         if s["is_duty"]:

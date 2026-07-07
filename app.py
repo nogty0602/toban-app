@@ -24,6 +24,8 @@ with st.sidebar:
                "\n例: A:土2,4 → Aは第2・第4土曜を優先。C:金2:宿直 → Cは第2金曜の宿直。B:土 → Bは毎週土曜。")
     with st.expander("詳細設定（任意）"):
         top_coeff = st.slider("最新年度の係数（傾斜の強さ）", 1.0, 3.0, 2.0, 0.1)
+        w_duty_slope = st.number_input("当直/日直の回数傾斜の強さ", 0, 200, 15)
+        st.caption("大きいほど、当直・日直の“回数”を新しい人に多く寄せます（0で無効）。")
         hol_oc = st.number_input("祝日(平日)の夜OCの点数", 1, 9, 3)
         hol_duty = st.number_input("祝日(平日)の当直の点数", 1, 9, 4)
         st.markdown("**土日祝のOCが1枠(終日)のときの点数**")
@@ -77,6 +79,7 @@ def solve_params():
         oc_single_sat=int(oc_s_sat), oc_single_sun=int(oc_s_sun),
         oc_single_sun_monhol=int(oc_s_sun_mh), oc_single_holiday=int(oc_s_hol),
         top_coeff=float(top_coeff), w_premium=int(w_premium), w_consec=int(w_consec),
+        w_duty_slope=int(w_duty_slope),
         w_spacing=int(w_spacing),
         spacing={"OC": int(sp_oc), "宿直": int(sp_shuku), "日直": int(sp_nikki)},
         spacing_cross={"宿直-日直": int(sp_sd), "OC-宿直": int(sp_oshuku), "OC-日直": int(sp_onikki)},

@@ -113,6 +113,7 @@ def solve_roster(file_like, year, month,
                  weekday_prefer=None, w_weekday=40,
                  no_sat_duty_year=None,
                  jr_frisat_year=None, w_frisat=40,
+                 senior_duty_cap_year=None, senior_duty_cap=1,
                  time_limit=40):
     wb = load_workbook(file_like)
     ws = wb.active
@@ -231,6 +232,9 @@ def solve_roster(file_like, year, month,
         du = [x[(si, mi)] for si, s in enumerate(slots) if mi in s["avail"] and s["is_duty"]]
         if oc: model.Add(sum(oc) <= 2)
         if du: model.Add(sum(du) <= 2)
+        # 指定年度より古い（入局年度が小さい）メンバーは、日直＋当直の合計を上限で制限
+        if senior_duty_cap_year is not None and du and yrs[mi] < senior_duty_cap_year:
+            model.Add(sum(du) <= senior_duty_cap)
 
     for day, idxs in by_day.items():
         for mi in range(NM):

@@ -38,6 +38,9 @@ with st.sidebar:
         st.caption("例: 2015 → 2014年以前入局の人は土曜の宿直に入れない。")
         jr_year = st.text_input("金土当直を優先：入局年度がこれより新しい人", "")
         st.caption("例: 2018 → 2019年以降入局の人に金曜・土曜の宿直を優先。")
+        sen_cap_year = st.text_input("日直＋当直の回数制限：入局年度がこれより古い人", "")
+        sen_cap = st.number_input("↑その人たちの日直＋当直の上限回数", 0, 4, 1)
+        st.caption("例: 2010 & 上限1 → 2009年以前入局の人は日直＋当直あわせて1回まで。")
         w_frisat = st.number_input("↑金土優先の重み", 0, 500, 40)
         w_premium = st.number_input("④プレミアム枠超過の重み", 0, 500, 80)
         w_consec = st.number_input("③連続勤務の重み", 0, 500, 100)
@@ -85,6 +88,8 @@ def solve_params():
         spacing_cross={"宿直-日直": int(sp_sd), "OC-宿直": int(sp_oshuku), "OC-日直": int(sp_onikki)},
         no_sat_duty_year=(int(no_sat_year) if no_sat_year.strip().isdigit() else None),
         jr_frisat_year=(int(jr_year) if jr_year.strip().isdigit() else None),
+        senior_duty_cap_year=(int(sen_cap_year) if sen_cap_year.strip().isdigit() else None),
+        senior_duty_cap=int(sen_cap),
         w_frisat=int(w_frisat),
         time_limit=int(time_limit))
 

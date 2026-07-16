@@ -1,39 +1,41 @@
 """手書き希望表の写真から × を読み取るモジュール（方式1）。
-固定テンプレ前提：四隅の位置合わせマークで補正し、較正済みのマス目座標で各セルの
+四隅の位置合わせマークで補正し、テンプレの枠数(行)・人数(列)に合わせて各セルの
 黒インク量から × / 空欄 を判定する。氏名・枠・年度・希望はExcelテンプレ側で持つ。
 """
 import cv2
 import numpy as np
 
-# ---- 較正値（OW×OH に補正した座標系でのマス目位置）----
 OW, OH = 1400, 1950
-GRID = dict(x0=246, x1=1294, y0=200, y1=1892)  # メンバー12列・データ40行の外枠
-INK_THRESH = 0.06     # セル内の黒画素率がこれ以上なら ×
-DARK = 110            # これ未満を黒インクとみなす
-MARGIN = 0.18         # セル内側をこの割合だけ縮めて罫線を除外
+X0, X1 = 246, 1294        # メンバー列の左右（列数で等分）
+HH, GG = 4.73, 1.37       # 7月較正から得た「ヘッダー分/下余白分」の行数換算
+INK_THRESH = 0.06
+DARK = 110
+MARGIN = 0.18
 
 
 def detect_corners(img):
+    """四隅の■マークを検出。左右で分け、左の最上=TL・最下=BL、右の最上=TR・最下=BR。"""
     H, W = img.shape[:2]
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     _, dark = cv2.threshold(gray, 80, 255, cv2.THRESH_BINARY_INV)
     n, lab, stats, cent = cv2.connectedComponentsWithStats(dark, 8)
-    area_min = 0.00002 * H * W
-    area_max = 0.0009 * H * W
-    cands = []
+    amin = 0.00003 * H * W
+    amax = 0.0008 * H * W
+    sq = []
     for i in range(1, n):
         x, y, w, h, area = stats[i]
-        if area_min < area < area_max and 0.55 < w / max(h, 1) < 1.8:
-            cx, cy = cent[i]
-            if (cx < W * 0.2 or cx > W * 0.8) and (cy < H * 0.15 or cy > H * 0.88):
-                cands.append((cx, cy))
-    if len(cands) < 4:
-        raise ValueError("四隅の位置合わせマークが検出できませんでした。"
-                         "マーク付きの用紙を、なるべく真上から撮影してください。")
-
-    def pick(fx, fy):
-        return min(cands, key=lambda p: (p[0] - fx) ** 2 + (p[1] - fy) ** 2)
-    return pick(0, 0), pick(W, 0), pick(0, H), pick(W, H)
+        cx, cy = cent[i]
+        if amin < area < amax and 0.55 < w / max(h, 1) < 1.8:
+            if (cx < W * 0.22 or cx > W * 0.78) and (cy < H * 0.28 or cy > H * 0.78):
+                sq.append((cx, cy))
+    left = [s for s in sq if s[0] < W * 0.5]
+    right = [s for s in sq if s[0] > W * 0.5]
+    if len(left) < 2 or len(right) < 2:
+        raise ValueError("四隅の位置合わせマーク(■)を検出できませんでした。"
+                         "マークの周りに白い余白がある用紙を、真上から撮影/スキャンしてください。")
+    TL = min(left, key=lambda s: s[1]); BL = max(left, key=lambda s: s[1])
+    TR = min(right, key=lambda s: s[1]); BR = max(right, key=lambda s: s[1])
+    return TL, TR, BL, BR
 
 
 def warp(img, corners):
@@ -43,18 +45,24 @@ def warp(img, corners):
     return cv2.warpPerspective(img, M, (OW, OH))
 
 
-def _cells(n_cols=12):
-    xs = np.linspace(GRID["x0"], GRID["x1"], n_cols + 1)
-    ys = np.linspace(GRID["y0"], GRID["y1"], 41)
+def _yrange(n_rows):
+    """行数からデータ帯の上端・下端(warped座標)を推定。"""
+    T = HH + n_rows + GG
+    return HH / T * OH, (HH + n_rows) / T * OH
+
+
+def _cells(n_cols, n_rows):
+    y0, y1 = _yrange(n_rows)
+    xs = np.linspace(X0, X1, n_cols + 1)
+    ys = np.linspace(y0, y1, n_rows + 1)
     return xs, ys
 
 
-def read_grid(warped, n_cols=12):
-    """warped画像から 40行×n_cols列 の×真偽（1=×）とインク率を返す。"""
+def read_grid(warped, n_cols, n_rows):
     g = cv2.cvtColor(warped, cv2.COLOR_BGR2GRAY)
-    xs, ys = _cells(n_cols)
+    xs, ys = _cells(n_cols, n_rows)
     grid, ratios = [], []
-    for r in range(40):
+    for r in range(n_rows):
         y0, y1 = int(ys[r]), int(ys[r + 1])
         row, rr = [], []
         for c in range(n_cols):
@@ -68,11 +76,10 @@ def read_grid(warped, n_cols=12):
     return grid, ratios
 
 
-def annotate(warped, grid, n_cols=12):
-    """×と判定したセルを緑で塗った確認用プレビューを返す。"""
+def annotate(warped, grid, n_cols, n_rows):
     ov = warped.copy()
-    xs, ys = _cells(n_cols)
-    for r in range(40):
+    xs, ys = _cells(n_cols, n_rows)
+    for r in range(n_rows):
         y0, y1 = int(ys[r]), int(ys[r + 1])
         for c in range(n_cols):
             if grid[r][c]:
@@ -83,15 +90,15 @@ def annotate(warped, grid, n_cols=12):
     return ov
 
 
-def read_photo(image_bytes, n_cols=12):
-    """PNG/JPEGのbytesを受け取り、(grid, preview_bytes) を返す。n_cols=メンバー人数。"""
+def read_photo(image_bytes, n_cols=12, n_rows=40):
+    """PNG/JPEGのbytes → (grid, preview_bytes)。n_cols=人数, n_rows=枠数（テンプレ由来）。"""
     arr = np.frombuffer(image_bytes, np.uint8)
     img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
     if img is None:
         raise ValueError("画像を読み込めませんでした。")
     corners = detect_corners(img)
     w = warp(img, corners)
-    grid, ratios = read_grid(w, n_cols)
-    prev = annotate(w, grid, n_cols)
+    grid, ratios = read_grid(w, n_cols, n_rows)
+    prev = annotate(w, grid, n_cols, n_rows)
     ok, buf = cv2.imencode(".png", prev)
     return grid, (buf.tobytes() if ok else None)

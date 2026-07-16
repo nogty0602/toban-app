@@ -161,7 +161,7 @@ else:
         try:
             tpl_bytes = tpl.getvalue()
             members, years, slots = template_info(io.BytesIO(tpl_bytes))
-            grid, preview = read_photo(photo.getvalue(), n_cols=len(members))
+            grid, preview = read_photo(photo.getvalue(), n_cols=len(members), n_rows=len(slots))
             if len(slots) != len(grid):
                 st.warning(f"テンプレの枠数({len(slots)})と写真の行数({len(grid)})が一致しません。"
                            "テンプレが同じ様式か確認してください。")
